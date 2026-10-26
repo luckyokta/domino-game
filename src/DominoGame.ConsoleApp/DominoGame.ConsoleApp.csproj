@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DominoGame.ConsoleApp</RootNamespace>
+    <!-- Lets the app run on a newer installed runtime (e.g. built for net8.0, run on .NET 10). -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.49.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DominoGame.Core\DominoGame.Core.csproj" />
+  </ItemGroup>
+
+</Project>

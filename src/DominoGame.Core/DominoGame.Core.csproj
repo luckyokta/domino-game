@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DominoGame.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>
