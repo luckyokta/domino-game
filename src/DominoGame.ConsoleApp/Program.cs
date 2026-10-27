@@ -1,6 +1,7 @@
 using Spectre.Console;
 using DominoGame.Core;
 using DominoGame.Core.Enums;
+using DominoGame.Core.Factories;
 using DominoGame.Core.Interfaces;
 using DominoGame.Core.Models;
 
@@ -8,7 +9,13 @@ namespace DominoGame.ConsoleApp;
 
 internal class Program
 {
-    private static readonly GameController Controller = new();
+    private static readonly GameController Controller = new GameController(
+        new DominoBoard(),
+        new Boneyard(new List<Tile>()),
+        new List<IPlayer>(),
+        new Dictionary<IPlayer, List<Tile>>(),
+        new Dictionary<IPlayer, int>(),
+        new DominoFactory());
 
     static void Main(string[] args)
     {
