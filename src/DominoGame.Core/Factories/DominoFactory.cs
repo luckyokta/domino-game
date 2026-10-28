@@ -2,9 +2,9 @@ using DominoGame.Core.Models;
 
 namespace DominoGame.Core.Factories
 {
-    public static class DominoFactory
+    public class DominoFactory
     {
-        public static List<Tile> CreateDoubleSixSet()
+        public List<Tile> CreateDoubleSixSet()
         {
             List<Tile> tiles = new();
 

@@ -1,6 +1,7 @@
 using DominoGame.Api.Dtos;
 using DominoGame.Core;
 using DominoGame.Core.Enums;
+using DominoGame.Core.Factories;
 using DominoGame.Core.Interfaces;
 using DominoGame.Core.Models;
 
@@ -44,7 +45,13 @@ public class GameSession
     private readonly object _sync = new();
     private readonly List<Seat> _seats = new();
     private readonly List<string> _log = new();
-    private readonly GameController _game = new();
+    private readonly GameController _game = new GameController(
+        new DominoBoard(),
+        new Boneyard(new List<Tile>()),
+        new List<IPlayer>(),
+        new Dictionary<IPlayer, List<Tile>>(),
+        new Dictionary<IPlayer, int>(),
+        new DominoFactory());
     private bool _started;
     private int _lastRoundPoints;
 
@@ -182,7 +189,14 @@ public class GameSession
             _log.Clear();
             _lastRoundPoints = 0;
 
-            _game.StartNewGame(_seats.Select(s => s.Name).ToList(), TargetScore);
+            try
+            {
+                _game.StartNewGame(_seats.Select(s => s.Name).ToList(), TargetScore);
+            }
+            catch (InvalidOperationException)
+            {
+                return SessionResult.Fail("The game could not be started.");
+            }
 
             if (_game.Status != GameStatus.InProgress || _game.Players.Count != _seats.Count)
             {
@@ -244,7 +258,14 @@ public class GameSession
 
             int handSizeBefore = hand.Count;
 
-            _game.PlayTurn(player, tile, end);
+            try
+            {
+                _game.PlayTurn(player, tile, end);
+            }
+            catch (InvalidOperationException)
+            {
+                return SessionResult.Fail("The move was rejected.");
+            }
 
             if (hand.Count >= handSizeBefore)
             {
@@ -272,7 +293,15 @@ public class GameSession
                 return SessionResult.Fail("You can only draw when you have no playable tile and the boneyard isn't empty.");
             }
 
-            Tile? drawn = _game.DrawTile(player);
+            Tile? drawn;
+            try
+            {
+                drawn = _game.DrawTile(player);
+            }
+            catch (InvalidOperationException)
+            {
+                return SessionResult.Fail("Could not draw a tile.");
+            }
 
             if (drawn == null)
             {
@@ -322,7 +351,14 @@ public class GameSession
             }
 
             _lastRoundPoints = 0;
-            _game.StartNewRound();
+            try
+            {
+                _game.StartNewRound();
+            }
+            catch (InvalidOperationException)
+            {
+                return SessionResult.Fail("The round could not be started.");
+            }
             AddLog($"Round {_game.CurrentRound} has started.");
 
             Touch();

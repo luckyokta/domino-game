@@ -8,13 +8,13 @@ namespace DominoGame.Core
     public class GameController
     {
         private int _currentPlayerIndex;
-        public Dictionary<IPlayer, List<Tile>> PlayerHands {get;} = new();
-        public Dictionary<IPlayer, int> PlayerScores {get;} = new();
-        public List<IPlayer> Players {get;} = new();
+        private readonly DominoFactory _dominoFactory;
+        public Dictionary<IPlayer, List<Tile>> PlayerHands {get; private set;}
+        public Dictionary<IPlayer, int> PlayerScores {get; private set;}
+        public List<IPlayer> Players {get; private set;}
         public IPlayer? CurrentPlayer => Players.Count > 0 ? Players[_currentPlayerIndex] : null;
-        public int CurrentPlayerIndex => _currentPlayerIndex;
-        public IBoard Board {get; private set;} = new DominoBoard();
-        public IBoneyard Boneyard {get; private set;} = new Boneyard(new List<Tile>());
+        public IBoard Board {get; private set;}
+        public IBoneyard Boneyard {get; private set;}
         public bool CanDraw {get; private set;}
         public bool CanPass {get; private set;}
         public int TargetScore {get; private set;}
@@ -32,16 +32,38 @@ namespace DominoGame.Core
         public event Action<IPlayer>? MatchOver;
         public event Action<IPlayer, Tile>? TileDrawn;
 
+        public GameController(
+            IBoard board,
+            IBoneyard boneyard,
+            List<IPlayer> players,
+            Dictionary<IPlayer, List<Tile>> playerHands,
+            Dictionary<IPlayer, int> playerScores,
+            DominoFactory dominoFactory)
+        {
+            Board = board;
+            Boneyard = boneyard;
+            Players = players;
+            PlayerHands = playerHands;
+            PlayerScores = playerScores;
+            _dominoFactory = dominoFactory;
+        }
 
         public void StartNewGame(List<string> playerNames, int targetScore = 100)
         {
             // Input validation
+            if (playerNames is null)
+            {
+                return;
+            }
+
+            bool isPlayerCountInvalid = playerNames.Count < 2 || playerNames.Count > 4;
+            bool containsInvalidPlayerName = playerNames.Any(name => string.IsNullOrWhiteSpace(name));
+            bool isTargetScoreInvalid = targetScore <= 0;
+
             if(
-                playerNames == null ||
-                playerNames.Count < 2 || 
-                playerNames.Count > 4 ||
-                playerNames.Any(name => string.IsNullOrWhiteSpace(name)) ||
-                targetScore <= 0)
+                isPlayerCountInvalid ||
+                containsInvalidPlayerName ||
+                isTargetScoreInvalid)
             {
                 return;
             }
@@ -74,10 +96,10 @@ namespace DominoGame.Core
             }
 
             // Prepare board, tiles, and boneyard
-            Board = new DominoBoard();    
-            List<Tile> tiles = DominoFactory.CreateDoubleSixSet();
-            Boneyard = new Boneyard(tiles);
-            ShuffleBoneyard(Boneyard);
+            Board.PlayedTiles.Clear();
+            Boneyard.Tiles.Clear();
+            Boneyard.Tiles.AddRange(_dominoFactory.CreateDoubleSixSet());
+            ShuffleBoneyard();
 
             // Give tiles to each player
             int tilesPerPlayer = Players.Count == 4 ? 6 : 7;
@@ -93,7 +115,7 @@ namespace DominoGame.Core
             }
 
             // Determine first player
-            IPlayer firstPlayer = DetermineFirstPlayer(Players);
+            IPlayer firstPlayer = DetermineFirstPlayer();
             _currentPlayerIndex = Players.IndexOf(firstPlayer);
 
             // Set initial game state
@@ -106,20 +128,22 @@ namespace DominoGame.Core
             GameStarted?.Invoke(Players);
         }
 
-        private void ShuffleBoneyard(IBoneyard boneyard)
+        private void ShuffleBoneyard()
         {
             Random random = Random.Shared;
 
-            for(int i = boneyard.Tiles.Count - 1; i > 0; i--)
+            for(int i = Boneyard.Tiles.Count - 1; i > 0; i--)
             {
                 int j = random.Next(i + 1);
-                (boneyard.Tiles[i], boneyard.Tiles[j]) = (boneyard.Tiles[j], boneyard.Tiles[i]);
+                (Boneyard.Tiles[i], Boneyard.Tiles[j]) = (Boneyard.Tiles[j], Boneyard.Tiles[i]);
             }
         }
 
         private Tile? PlayerGetHighestDouble(IPlayer player)
         {
-            if (!PlayerHands.ContainsKey(player))
+            bool isPlayerHandContainsPlayer = PlayerHands.ContainsKey(player);
+
+            if (!isPlayerHandContainsPlayer)
             {
                 return null;
             }
@@ -128,7 +152,9 @@ namespace DominoGame.Core
 
             foreach(Tile tile in PlayerHands[player])
             {
-                if (tile.IsDouble)
+                bool isDoubleTile = tile.IsDouble;
+
+                if (isDoubleTile)
                 {
                     if(highestDouble == null || tile.Left > highestDouble.Value.Left)
                     {
@@ -142,7 +168,9 @@ namespace DominoGame.Core
 
         private Tile? PlayerGetHighestTile(IPlayer player)
         {
-            if (!PlayerHands.ContainsKey(player))
+            bool isPlayerHandContainsPlayer = PlayerHands.ContainsKey(player);
+
+            if (!isPlayerHandContainsPlayer)
             {
                 return null;
             }
@@ -160,20 +188,27 @@ namespace DominoGame.Core
             return highestTile;
         }
 
-        public IPlayer DetermineFirstPlayer(List<IPlayer> players)
+        public IPlayer DetermineFirstPlayer()
         {
             IPlayer? firstPlayer = null;
             int highestDoubleValue = -1;
 
             // find the player with highest double
-            foreach(IPlayer player in players)
+            foreach(IPlayer player in Players)
             {
                 Tile? highestDouble = PlayerGetHighestDouble(player);
 
-                if(highestDouble != null && highestDouble.Value.Left > highestDoubleValue)
+                if(highestDouble != null)
                 {
-                    highestDoubleValue = highestDouble.Value.Left;
-                    firstPlayer = player;
+                    int doubleLeft = highestDouble.Value.Left;
+
+                    bool hasHigherDouble = doubleLeft > highestDoubleValue;
+
+                    if(hasHigherDouble)
+                    {
+                        highestDoubleValue = doubleLeft;
+                        firstPlayer = player;
+                    }
                 }
             }
 
@@ -182,7 +217,7 @@ namespace DominoGame.Core
             {
                 int highestTileValue = -1;
 
-                foreach(IPlayer player in players)
+                foreach(IPlayer player in Players)
                 {
                     Tile? highestTile = PlayerGetHighestTile(player);
 
@@ -190,7 +225,9 @@ namespace DominoGame.Core
                     {
                         int tileValue = highestTile.Value.Left + highestTile.Value.Right;
 
-                        if(tileValue > highestTileValue)
+                        bool hasHigherTile = tileValue > highestTileValue;
+
+                        if(hasHigherTile)
                         {
                             highestTileValue = tileValue;
                             firstPlayer = player;
@@ -204,26 +241,31 @@ namespace DominoGame.Core
                 throw new InvalidOperationException("Cannot determine the first player.");
             }
 
-            return firstPlayer;
+            IPlayer determinedFirstPlayer = firstPlayer;
+            return determinedFirstPlayer;
         }
 
         private bool TileIsMatch(Tile tile, int targetValue)
         {
-            return tile.Left == targetValue || tile.Right == targetValue;
+            bool isMatch = tile.Left == targetValue || tile.Right == targetValue;
+
+            return isMatch;
         }
 
         public bool CanPlayTile(Tile tile)
         {
-            if (Board.IsEmpty)
+            bool canPlayTile = Board.IsEmpty;
+
+            if(!canPlayTile)
             {
-                return true;
+                canPlayTile = 
+                    tile.Left == Board.LeftEndValue ||
+                    tile.Right == Board.LeftEndValue ||
+                    tile.Left == Board.RightEndValue ||
+                    tile.Right == Board.RightEndValue;
             }
 
-            return 
-                tile.Left == Board.LeftEndValue ||
-                tile.Right == Board.LeftEndValue ||
-                tile.Left == Board.RightEndValue ||
-                tile.Right == Board.RightEndValue;
+            return canPlayTile;
         }
 
         public bool CanPlayTile(int tileIndex)
@@ -240,7 +282,9 @@ namespace DominoGame.Core
                 return false;
             }
 
-            return CanPlayTile(PlayerHands[player][tileIndex]);
+            bool canPlayTile = CanPlayTile(PlayerHands[player][tileIndex]);
+
+            return canPlayTile;
         }
 
         public bool HasValidMoves(IPlayer player)
@@ -300,19 +344,24 @@ namespace DominoGame.Core
 
         public bool IsValidMove(Tile tile, BoardEnd end)
         {
-            if (Board.IsEmpty)
+            bool isBoardEmpty = Board.IsEmpty;
+            bool isValidMove = false;
+
+            if(isBoardEmpty)
             {
-                return true;
+                isValidMove = true;
+            }
+            else
+            {
+                int? targetValue = end == BoardEnd.Left ? Board.LeftEndValue : Board.RightEndValue;
+
+                if(targetValue != null)
+                {
+                    isValidMove = TileIsMatch(tile, targetValue.Value);
+                }
             }
 
-            int? targetValue = end == BoardEnd.Left ? Board.LeftEndValue : Board.RightEndValue;
-
-            if(targetValue == null)
-            {
-                return false;
-            }
-
-            return TileIsMatch(tile, targetValue.Value);
+            return isValidMove;
         }
 
         private Tile TileFlip(Tile tile)
@@ -343,23 +392,6 @@ namespace DominoGame.Core
             }
 
             return TileFlip(tile);
-        }
-
-        private bool ValidateBasicPlacement(Tile tile, BoardEnd end)
-        {
-            if (Board.IsEmpty)
-            {
-                return true;
-            }
-
-            int? targetValue = end == BoardEnd.Left ? Board.LeftEndValue : Board.RightEndValue;
-
-            if(targetValue == null)
-            {
-                return false;
-            }
-
-            return TileIsMatch(tile, targetValue.Value);
         }
 
         private void PlaceTile(Tile tile, BoardEnd end)
@@ -401,11 +433,11 @@ namespace DominoGame.Core
 
         public void PlayTurn(IPlayer player, Tile tile, BoardEnd end)
         {
-            if(
-                Status != GameStatus.InProgress ||
-                RoundStatus != RoundStatus.InProgress ||
-                !Equals(player, CurrentPlayer) ||
-                !IsValidMove(player, tile, end))
+            bool isRoundInProgress = Status == GameStatus.InProgress && RoundStatus == RoundStatus.InProgress;
+            bool isPlayerTurn = Equals(player, CurrentPlayer);
+            bool isMoveValid = IsValidMove(player, tile, end);
+
+            if(!isRoundInProgress || !isPlayerTurn || !isMoveValid)
             {
                 return;
             }
@@ -421,10 +453,10 @@ namespace DominoGame.Core
 
             // Check whether the round has ended
             bool playerEmptiedHand = PlayerHands[player].Count == 0;
+            bool blockedGame = Boneyard.IsEmpty && !Players.Any(currentPlayer => HasValidMoves(currentPlayer));
+            bool hasRoundEnded = playerEmptiedHand || blockedGame;
 
-            bool blockedGame = Boneyard.IsEmpty && !Players.Any(player => HasValidMoves(player));
-
-            if(playerEmptiedHand || blockedGame)
+            if(hasRoundEnded)
             {
                 // Determine round winner
                 IPlayer? winner = DetermineWinner();
@@ -434,9 +466,7 @@ namespace DominoGame.Core
                 // Calculate and award points only if there is a winner
                 if(winner != null)
                 {
-                    List<IPlayer> losers = Players.Where(player => !Equals(player, winner)).ToList();
-
-                    int roundScore = CalculateRoundScore(losers);
+                    int roundScore = CalculateRoundScore();
 
                     PlayerScores[winner] += roundScore;
 
@@ -509,7 +539,9 @@ namespace DominoGame.Core
 
         public void PassTurn()
         {
-            if(Status != GameStatus.InProgress || RoundStatus != RoundStatus.InProgress)
+            bool isRoundInProgress = Status == GameStatus.InProgress && RoundStatus == RoundStatus.InProgress;
+
+            if(!isRoundInProgress)
             {
                 return;
             }
@@ -521,7 +553,10 @@ namespace DominoGame.Core
                 return;
             }
 
-            if(!CanPass || HasValidMoves(player))
+            bool canPlayerPass = CanPass;
+            bool playerHasValidMoves = HasValidMoves(player);
+
+            if(!canPlayerPass || playerHasValidMoves)
             {
                 return;
             }
@@ -529,9 +564,11 @@ namespace DominoGame.Core
             PlayerPassed?.Invoke(player);
 
             // Check whether the game is blocked
-            bool blockedGame = Boneyard.IsEmpty && !Players.Any(player => HasValidMoves(player));
+            bool blockedGame = Boneyard.IsEmpty && !Players.Any(currentPlayer => HasValidMoves(currentPlayer));
 
-            if (blockedGame)
+            bool hasRoundEnded = blockedGame;
+
+            if (hasRoundEnded)
             {
                 IPlayer? winner = DetermineWinner();
                 
@@ -540,9 +577,7 @@ namespace DominoGame.Core
                 // Calculate and award points only if there is a winner
                 if(winner != null)
                 {
-                    List<IPlayer> losers = Players.Where(player => !Equals(player, winner)).ToList();
-
-                    int roundScore = CalculateRoundScore(losers);
+                    int roundScore = CalculateRoundScore();
 
                     PlayerScores[winner] += roundScore;
 
@@ -596,7 +631,9 @@ namespace DominoGame.Core
 
         private bool PlayerHasTile(IPlayer player, Tile tile)
         {
-            return PlayerHands.ContainsKey(player) && PlayerHands[player].Contains(tile);
+            bool hasTile = PlayerHands.ContainsKey(player) && PlayerHands[player].Contains(tile);
+
+            return hasTile;
         }
 
         private void PlayerRemoveTile(IPlayer player, Tile tile)
@@ -630,12 +667,12 @@ namespace DominoGame.Core
 
         public Tile? DrawTile(IPlayer player)
         {
-            if(
-                Status != GameStatus.InProgress ||
-                RoundStatus != RoundStatus.InProgress ||
-                !Equals(CurrentPlayer, player) ||
-                !CanDraw ||
-                Boneyard.IsEmpty)
+            bool isRoundInProgress = Status == GameStatus.InProgress && RoundStatus == RoundStatus.InProgress;
+            bool isPlayerTurn = Equals(CurrentPlayer, player);
+            bool canPlayerDraw = CanDraw;
+            bool isBoneyardEmpty = Boneyard.IsEmpty;
+
+            if(!isRoundInProgress || !isPlayerTurn || !canPlayerDraw || isBoneyardEmpty)
             {
                 return null;
             }
@@ -671,13 +708,18 @@ namespace DominoGame.Core
             return total;
         }
 
-        public int CalculateRoundScore(List<IPlayer> losers)
+        public int CalculateRoundScore()
         {
             int score = 0;
 
-            foreach(IPlayer player in losers)
+            IPlayer? winner = RoundWinner;
+
+            foreach(IPlayer player in Players)
             {
-                score += PlayerTotalPips(player);
+                if(winner != null && !Equals(player, winner))
+                {
+                    score += PlayerTotalPips(player);
+                }
             }
 
             return score;
@@ -692,7 +734,7 @@ namespace DominoGame.Core
 
             // Clear the previous round's state
             PlayerHands.Clear();
-            Board = new DominoBoard();
+            Board.PlayedTiles.Clear();
 
             // Reset round state
             RoundWinner = null;
@@ -700,9 +742,9 @@ namespace DominoGame.Core
             CanPass = false;
 
             // Initialize a new boneyard
-            List<Tile> tiles = DominoFactory.CreateDoubleSixSet();
-            Boneyard = new Boneyard(tiles);
-            ShuffleBoneyard(Boneyard);
+            Boneyard.Tiles.Clear();
+            Boneyard.Tiles.AddRange(_dominoFactory.CreateDoubleSixSet());
+            ShuffleBoneyard();
 
             // Initialize each player's hand
             foreach(IPlayer player in Players)
@@ -724,7 +766,7 @@ namespace DominoGame.Core
             }
 
             // Determine the first player
-            IPlayer firstPlayer = DetermineFirstPlayer(Players);
+            IPlayer firstPlayer = DetermineFirstPlayer();
             _currentPlayerIndex = Players.IndexOf(firstPlayer);
 
             // Update round state
@@ -739,14 +781,18 @@ namespace DominoGame.Core
             {
                 if(PlayerHands.ContainsKey(player) && PlayerHands[player].Count == 0)
                 {
-                    return player;
+                    IPlayer? roundWinner = player;
+
+                    return roundWinner;
                 }
             }
 
             // If the boneyard still has tile, the round cannot end due to blocked game
             if (!Boneyard.IsEmpty)
             {
-                return null;
+                IPlayer? noRoundWinner = null;
+
+                return noRoundWinner;
             }
 
             // Check whether any player can still play a tile
@@ -754,7 +800,9 @@ namespace DominoGame.Core
             {
                 if (HasValidMoves(player))
                 {
-                    return null;
+                    IPlayer? noRoundWinner = null;
+
+                    return noRoundWinner;
                 }
             }
 
@@ -779,7 +827,7 @@ namespace DominoGame.Core
 
             // Find the highest comparison score
             int highestScore = int.MinValue;
-            IPlayer? winner = null;
+            IPlayer? highestScoringPlayer = null;
             bool isTie = false;
 
             foreach(KeyValuePair<IPlayer, int> entry in comparisonScores)
@@ -787,7 +835,7 @@ namespace DominoGame.Core
                 if(entry.Value > highestScore)
                 {
                     highestScore = entry.Value;
-                    winner = entry.Key;
+                    highestScoringPlayer = entry.Key;
                     isTie = false;
                 }
                 else if(entry.Value == highestScore)
@@ -796,7 +844,9 @@ namespace DominoGame.Core
                 }
             }
 
-            return isTie ? null : winner;
+            IPlayer? winner = isTie ? null : highestScoringPlayer;
+
+            return winner;
         }
 
         public IPlayer? DetermineMatchWinner()
@@ -805,11 +855,15 @@ namespace DominoGame.Core
             {
                 if(PlayerScores.ContainsKey(player) && PlayerScores[player] >= TargetScore)
                 {
-                    return player;
+                    IPlayer? foundMatchWinner = player;
+
+                    return foundMatchWinner;
                 }
             }
 
-            return null;
+            IPlayer? noMatchWinner = null;
+
+            return noMatchWinner;
         }
     }
 }
