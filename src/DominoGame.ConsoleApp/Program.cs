@@ -1,55 +1,81 @@
+using Serilog;
 using Spectre.Console;
 using DominoGame.Core;
 using DominoGame.Core.Enums;
 using DominoGame.Core.Factories;
 using DominoGame.Core.Interfaces;
 using DominoGame.Core.Models;
+using Microsoft.Extensions.Logging;
+using Serilog.Formatting.Compact;
 
 namespace DominoGame.ConsoleApp;
 
 internal class Program
 {
+    private static readonly Serilog.ILogger SerilogLogger =
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.File(
+                new CompactJsonFormatter(),
+                "logs/domino-.log",
+                rollingInterval: RollingInterval.Day)
+            .CreateLogger();
+
+    private static readonly ILoggerFactory LoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
+    {
+        builder.AddSerilog(SerilogLogger);
+    });
+
     private static readonly GameController Controller = new GameController(
         new DominoBoard(),
         new Boneyard(new List<Tile>()),
         new List<IPlayer>(),
         new Dictionary<IPlayer, List<Tile>>(),
         new Dictionary<IPlayer, int>(),
-        new DominoFactory());
+        new DominoFactory(),
+        LoggerFactory.CreateLogger<GameController>());
 
     static void Main(string[] args)
     {
-        bool exit = false;
-
-        while (!exit)
+        try
         {
-            AnsiConsole.Clear();
+            bool exit = false;
 
-            AnsiConsole.Write(
-                new FigletText("DOMINO GAME")
-                    .Centered()
-                    .Color(Color.Blue));
-
-            string choice = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("[bold yellow]Main Menu[/]")
-                    .AddChoices(
-                        "Start New Game",
-                        "Exit"));
-
-            switch (choice)
+            while (!exit)
             {
-                case "Start New Game":
-                    StartGame();
-                    break;
+                AnsiConsole.Clear();
 
-                case "Exit":
-                    exit = true;
-                    break;
+                AnsiConsole.Write(
+                    new FigletText("DOMINO GAME")
+                        .Centered()
+                        .Color(Color.Blue));
+
+                string choice = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[bold yellow]Main Menu[/]")
+                        .AddChoices(
+                            "Start New Game",
+                            "Exit"));
+
+                switch (choice)
+                {
+                    case "Start New Game":
+                        StartGame();
+                        break;
+
+                    case "Exit":
+                        exit = true;
+                        break;
+                }
             }
-        }
 
-        AnsiConsole.MarkupLine("[grey]Thanks for playing![/]");
+            AnsiConsole.MarkupLine("[grey]Thanks for playing![/]");
+        }
+        finally
+        {
+            LoggerFactory.Dispose();
+            Log.CloseAndFlush();
+        }
     }
 
     

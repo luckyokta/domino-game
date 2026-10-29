@@ -2,11 +2,13 @@ using DominoGame.Core.Interfaces;
 using DominoGame.Core.Models;
 using DominoGame.Core.Enums;
 using DominoGame.Core.Factories;
+using Microsoft.Extensions.Logging;
 
 namespace DominoGame.Core
 {
     public class GameController
     {
+        private readonly ILogger<GameController> _logger;
         private int _currentPlayerIndex;
         private readonly DominoFactory _dominoFactory;
         public Dictionary<IPlayer, List<Tile>> PlayerHands {get; private set;}
@@ -38,7 +40,8 @@ namespace DominoGame.Core
             List<IPlayer> players,
             Dictionary<IPlayer, List<Tile>> playerHands,
             Dictionary<IPlayer, int> playerScores,
-            DominoFactory dominoFactory)
+            DominoFactory dominoFactory,
+            ILogger<GameController> logger)
         {
             Board = board;
             Boneyard = boneyard;
@@ -46,6 +49,7 @@ namespace DominoGame.Core
             PlayerHands = playerHands;
             PlayerScores = playerScores;
             _dominoFactory = dominoFactory;
+            _logger = logger;
         }
 
         public void StartNewGame(List<string> playerNames, int targetScore = 100)
@@ -67,6 +71,12 @@ namespace DominoGame.Core
             {
                 return;
             }
+
+            _logger.LogInformation(
+                "Starting a new game with {PlayerCount} players. Target score: {TargetScore}",
+                playerNames.Count,
+                targetScore
+            );
 
             // clear state from previous game
             Players.Clear();
@@ -448,6 +458,14 @@ namespace DominoGame.Core
             // Remove tile from player's hand
             PlayerRemoveTile(player, tile);
 
+            // Log the successfull move
+            _logger.LogInformation(
+                "Player {PlayerName} (ID: {PlayerId}) played tile {Tile} on {BoardEnd}.",
+                player.Name,
+                player.Id,
+                tile,
+                end);
+
             // Notify subscriber that the tile was played
             TilePlayed?.Invoke(player, tile, end);
 
@@ -470,12 +488,26 @@ namespace DominoGame.Core
 
                     PlayerScores[winner] += roundScore;
 
+                    // Log winner information
+                    _logger.LogInformation(
+                        "Player {PlayerName} (ID: {PlayerId}) scored {RoundScore} points. Total score: {TotalScore}.",
+                        winner.Name,
+                        winner.Id,
+                        roundScore,
+                        PlayerScores[winner]);
+
                     // Notify subscribers about the score
                     PlayerScored?.Invoke(winner, roundScore);
                 }
 
                 // Mark the round as complete
                 RoundStatus = RoundStatus.Completed;
+
+                // Log round end information
+                _logger.LogInformation(
+                    "Round {RoundNumber} ended. Winner: {WinnerName}.",
+                    CurrentRound,
+                    winner?.Name ?? "No winner");
 
                 // Notify subscribers that the round is over
                 RoundOver?.Invoke(winner);
@@ -487,6 +519,14 @@ namespace DominoGame.Core
                 {
                     MatchWinner = matchWinner;
                     Status = GameStatus.Completed;
+
+                    // Log match winner information
+                    _logger.LogInformation(
+                        "Match completed. Winner: {WinnerName} (ID: {WinnerId}). Final score: {FinalScore}. Target score: {TargetScore}.",
+                        matchWinner.Name,
+                        matchWinner.Id,
+                        PlayerScores[matchWinner],
+                        TargetScore);
 
                     // Notify subscribers that the match is over
                     MatchOver?.Invoke(matchWinner);
@@ -560,6 +600,12 @@ namespace DominoGame.Core
             {
                 return;
             }
+
+            // Log player passing
+            _logger.LogInformation(
+                "Player {PlayerName} (ID: {PlayerId}) passed their turn.",
+                player.Name,
+                player.Id);
 
             PlayerPassed?.Invoke(player);
 
@@ -679,6 +725,13 @@ namespace DominoGame.Core
 
             Tile tile = DrawFromBoneyard((Boneyard) Boneyard);
             PlayerAddTile(player, tile);
+
+            // Log the successful draw
+            _logger.LogInformation(
+                "Player {PlayerName} (ID: {PlayerId}) drew tile {Tile}.",
+                player.Name,
+                player.Id,
+                tile);
 
             TileDrawn?.Invoke(player, tile);
 

@@ -1,0 +1,7 @@
+2026-10-29 11:04:08.907 +07:00 [INF] Starting a new game with 2 players. Target score: 100
+2026-10-29 11:11:42.223 +07:00 [INF] Starting a new game with 2 players. Target score: 140
+2026-10-29 11:29:27.698 +07:00 [INF] Starting a new game with 3 players. Target score: 150
+2026-10-29 11:29:36.389 +07:00 [INF] Player Charlie (ID: 3) played tile [6|6] on "Left".
+2026-10-29 11:30:23.491 +07:00 [INF] Player Alice (ID: 1) played tile [3|6] on "Right".
+{"@t":"2026-10-29T04:47:10.4883734Z","@mt":"Starting a new game with {PlayerCount} players. Target score: {TargetScore}","PlayerCount":2,"TargetScore":50,"SourceContext":"DominoGame.Core.GameController"}
+{"@t":"2026-10-29T04:47:18.8547844Z","@mt":"Player {PlayerName} (ID: {PlayerId}) played tile {Tile} on {BoardEnd}.","PlayerName":"A","PlayerId":1,"Tile":"[5|5]","BoardEnd":"Left","SourceContext":"DominoGame.Core.GameController"}
