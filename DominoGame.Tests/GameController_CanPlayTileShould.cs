@@ -17,10 +17,6 @@ public class GameControllerCanPlayTileTests
     private readonly Boneyard _boneyard = new(new List<Tile>());
     private GameController _controller;
 
-    public GameControllerCanPlayTileTests()
-    {
-        _controller = new GameController(_board, _boneyard, _players, _playerHands, _playerScores, _dominoFactory, NullLogger<GameController>.Instance);
-    }
 
     [SetUp]
     public void Setup()

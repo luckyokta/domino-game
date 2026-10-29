@@ -17,10 +17,6 @@ public class GameControllerCalculateRoundScoreTests
     private readonly Boneyard _boneyard = new(new List<Tile>());
     private GameController _controller;
 
-    public GameControllerCalculateRoundScoreTests()
-    {
-        _controller = new GameController(_board, _boneyard, _players, _playerHands, _playerScores, _dominoFactory, NullLogger<GameController>.Instance);
-    }
 
     [SetUp]
     public void Setup()
@@ -36,27 +32,18 @@ public class GameControllerCalculateRoundScoreTests
     [Test]
     public void CalculateRoundScore_RoundWinnerDetermined_SumsLosingPlayersPips()
     {
-        GameController controller = new(
-            new DominoBoard(),
-            new Boneyard(new List<Tile>()),
-            new List<IPlayer>(),
-            new Dictionary<IPlayer, List<Tile>>(),
-            new Dictionary<IPlayer, int>(),
-            new DominoFactory(),
-            NullLogger<GameController>.Instance);
+        _controller.StartNewGame(new List<string> { "Player A", "Player B" }, 100);
+        IPlayer currentPlayer = _controller.CurrentPlayer!;
+        IPlayer otherPlayer = _controller.Players.First(p => p != currentPlayer);
 
-        controller.StartNewGame(new List<string> { "Player A", "Player B" }, 100);
-        IPlayer currentPlayer = controller.CurrentPlayer!;
-        IPlayer otherPlayer = controller.Players.First(p => p != currentPlayer);
+        _controller.PlayerHands[currentPlayer].Clear();
+        _controller.PlayerHands[currentPlayer].Add(new Tile(2, 4));
+        _controller.PlayerHands[otherPlayer].Clear();
+        _controller.PlayerHands[otherPlayer].Add(new Tile(6, 6));
 
-        controller.PlayerHands[currentPlayer].Clear();
-        controller.PlayerHands[currentPlayer].Add(new Tile(2, 4));
-        controller.PlayerHands[otherPlayer].Clear();
-        controller.PlayerHands[otherPlayer].Add(new Tile(6, 6));
+        _controller.PlayTurn(currentPlayer, new Tile(2, 4), BoardEnd.Right);
 
-        controller.PlayTurn(currentPlayer, new Tile(2, 4), BoardEnd.Right);
-
-        Assert.That(controller.RoundWinner, Is.SameAs(currentPlayer));
-        Assert.That(controller.CalculateRoundScore(), Is.EqualTo(12));
+        Assert.That(_controller.RoundWinner, Is.SameAs(currentPlayer));
+        Assert.That(_controller.CalculateRoundScore(), Is.EqualTo(12));
     }
 }
